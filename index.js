@@ -4,6 +4,17 @@ const app = express();
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
+var admin = require("firebase-admin");
+
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
+  "utf8"
+);
+const serviceAccount = JSON.parse(decoded);
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
 const cors = require("cors");
 const port = process.env.PORT || 3000;
 
@@ -20,6 +31,24 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+
+const verifyFireBaseToken = async (req, res, next) => {
+  const authHeader = req.headers?.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.decoded = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+};
 
 async function run() {
   try {
@@ -42,8 +71,13 @@ async function run() {
 
     // getting all the borrowed books
 
-    app.get("/borrows", async (req, res) => {
+    app.get("/borrows", verifyFireBaseToken, async (req, res) => {
       const email = req.query.email;
+
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+
       if (email) {
         query = { borrowerEmail: email };
       }
@@ -53,7 +87,7 @@ async function run() {
 
     // getting single books to update
 
-    app.get("/books/:id", async (req, res) => {
+    app.get("/books/:id", verifyFireBaseToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await booksCollection.findOne(query);
@@ -62,7 +96,7 @@ async function run() {
 
     // adding books in database
 
-    app.post("/books", async (req, res) => {
+    app.post("/books", verifyFireBaseToken, async (req, res) => {
       const book = req.body;
       const result = await booksCollection.insertOne(book);
       res.send(result);
@@ -70,7 +104,7 @@ async function run() {
 
     // adding borrowersData in different collection of database
 
-    app.post("/borrows", async (req, res) => {
+    app.post("/borrows", verifyFireBaseToken, async (req, res) => {
       const borrowersData = req.body;
       const result = await borrowersCollection.insertOne(borrowersData);
       res.send(result);
@@ -78,7 +112,7 @@ async function run() {
 
     // updating books in database
 
-    app.put("/books/:id", async (req, res) => {
+    app.put("/books/:id", verifyFireBaseToken, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const updatedBooks = req.body;
@@ -98,7 +132,7 @@ async function run() {
 
     // borrows a book
 
-    app.patch("/borrow/:id", async (req, res) => {
+    app.patch("/borrow/:id", verifyFireBaseToken, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const updateDoc = {
@@ -110,7 +144,7 @@ async function run() {
 
     // returns a book
 
-    app.patch("/return/:id", async (req, res) => {
+    app.patch("/return/:id", verifyFireBaseToken, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const updateDoc = {
@@ -122,9 +156,10 @@ async function run() {
 
     // remove the book from borrowers collection
 
-    app.delete("/borrows/:id", async (req, res) => {
+    app.delete("/borrows/:id", verifyFireBaseToken, async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
+      console.log(id);
+      const query = { _id: id };
       const result = await borrowersCollection.deleteOne(query);
       res.send(result);
     });
