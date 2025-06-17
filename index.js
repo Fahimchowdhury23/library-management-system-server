@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const app = express();
 
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const cors = require("cors");
 const port = process.env.PORT || 3000;
@@ -24,15 +24,66 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     const booksCollection = client.db("booksDB").collection("books");
+    const borrowersCollection = client.db("booksDB").collection("borrowers");
+
+    // getting all the book
 
     app.get("/books", async (req, res) => {
-      const result = await booksCollection.find().toArray();
+      const category = req.query.category;
+
+      console.log(category);
+
+      let query = {};
+      if (category) {
+        query = { category: { $regex: `^${category}$`, $options: "i" } };
+      }
+
+      const result = await booksCollection.find(query).toArray();
       res.send(result);
     });
+
+    app.get("/books/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await booksCollection.findOne(query);
+      res.send(result);
+    });
+
+    // adding books in database
 
     app.post("/books", async (req, res) => {
       const book = req.body;
       const result = await booksCollection.insertOne(book);
+      res.send(result);
+    });
+
+    // updating books in database
+
+    app.put("/books/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedBooks = req.body;
+      const updatedDoc = {
+        $set: updatedBooks,
+      };
+
+      const options = { upsert: true };
+
+      const result = await booksCollection.updateOne(
+        filter,
+        updatedDoc,
+        options
+      );
+      res.send(result);
+    });
+
+    app.patch("/books/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $inc: { quantity: -1 },
+      };
+      const result = await booksCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
   } finally {
