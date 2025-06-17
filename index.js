@@ -96,13 +96,36 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/books/:id", async (req, res) => {
+    // borrows a book
+
+    app.patch("/borrow/:id", async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const updateDoc = {
         $inc: { quantity: -1 },
       };
       const result = await booksCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+    // returns a book
+
+    app.patch("/return/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $inc: { quantity: 1 },
+      };
+      const result = await booksCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+    // remove the book from borrowers collection
+
+    app.delete("/borrows/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await borrowersCollection.deleteOne(query);
       res.send(result);
     });
   } finally {
