@@ -26,12 +26,10 @@ async function run() {
     const booksCollection = client.db("booksDB").collection("books");
     const borrowersCollection = client.db("booksDB").collection("borrowers");
 
-    // getting all the book
+    // getting all the books
 
     app.get("/books", async (req, res) => {
       const category = req.query.category;
-
-      console.log(category);
 
       let query = {};
       if (category) {
@@ -41,6 +39,19 @@ async function run() {
       const result = await booksCollection.find(query).toArray();
       res.send(result);
     });
+
+    // getting all the borrowed books
+
+    app.get("/borrows", async (req, res) => {
+      const email = req.query.email;
+      if (email) {
+        query = { borrowerEmail: email };
+      }
+      const result = await borrowersCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // getting single books to update
 
     app.get("/books/:id", async (req, res) => {
       const id = req.params.id;
@@ -54,6 +65,14 @@ async function run() {
     app.post("/books", async (req, res) => {
       const book = req.body;
       const result = await booksCollection.insertOne(book);
+      res.send(result);
+    });
+
+    // adding borrowersData in different collection of database
+
+    app.post("/borrows", async (req, res) => {
+      const borrowersData = req.body;
+      const result = await borrowersCollection.insertOne(borrowersData);
       res.send(result);
     });
 
