@@ -24,13 +24,19 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     const booksCollection = client.db("booksDB").collection("books");
+
+    app.post("/books", async (req, res) => {
+      const book = req.body;
+      const result = await booksCollection.insertOne(book);
+      res.send(result);
+    });
   } finally {
   }
 }
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
-  res.send("books are cooking");
+  res.send("Books are cooking");
 });
 
 app.listen(port, () => {
