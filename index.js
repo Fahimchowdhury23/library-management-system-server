@@ -32,6 +32,8 @@ const client = new MongoClient(uri, {
   },
 });
 
+// unauthorized verifying
+
 const verifyFireBaseToken = async (req, res, next) => {
   const authHeader = req.headers?.authorization;
 
@@ -48,6 +50,15 @@ const verifyFireBaseToken = async (req, res, next) => {
   } catch (error) {
     return res.status(401).send({ message: "unauthorized access" });
   }
+};
+
+// forbidden verifying
+
+const verifyTokenEmail = (req, res, next) => {
+  if (req.query.email !== req.decoded.email) {
+    return res.status(403).send({ message: "forbidden access" });
+  }
+  next();
 };
 
 async function run() {
@@ -71,27 +82,28 @@ async function run() {
 
     // getting all the borrowed books
 
-    app.get("/borrows", verifyFireBaseToken, async (req, res) => {
-      const email = req.query.email;
-
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "forbidden access" });
+    app.get(
+      "/borrows",
+      verifyFireBaseToken,
+      verifyTokenEmail,
+      async (req, res) => {
+        const email = req.query.email;
+        let query;
+        if (email) {
+          query = { borrowerEmail: email };
+        }
+        const result = await borrowersCollection.find(query).toArray();
+        res.send(result);
       }
-
-      if (email) {
-        query = { borrowerEmail: email };
-      }
-      const result = await borrowersCollection.find(query).toArray();
-      res.send(result);
-    });
+    );
 
     // getting single books to update
 
-    app.get("/books/:id", verifyFireBaseToken, async (req, res) => {
+    app.get("/books/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await booksCollection.findOne(query);
-      res.send(result);
+      res.status(200).send(result);
     });
 
     // adding books in database
@@ -106,8 +118,24 @@ async function run() {
 
     app.post("/borrows", verifyFireBaseToken, async (req, res) => {
       const borrowersData = req.body;
-      const result = await borrowersCollection.insertOne(borrowersData);
-      res.send(result);
+      const email = req.query.email;
+
+      let query;
+
+      if (email) {
+        query = { borrowerEmail: email };
+      }
+
+      const resultBorrowBooks = await borrowersCollection.find(query).toArray();
+
+      if (resultBorrowBooks.length >= 3) {
+        return res
+          .status(460)
+          .send({ message: "You can't borrow more than 3 books" });
+      } else {
+        const result = await borrowersCollection.insertOne(borrowersData);
+        res.send(result);
+      }
     });
 
     // updating books in database
@@ -158,7 +186,6 @@ async function run() {
 
     app.delete("/borrows/:id", verifyFireBaseToken, async (req, res) => {
       const id = req.params.id;
-      console.log(id);
       const query = { _id: id };
       const result = await borrowersCollection.deleteOne(query);
       res.send(result);
